@@ -61,6 +61,11 @@ export interface EmailTracking {
   updated_at: string
 }
 
+export interface DraftEntry {
+  draft: EmailDraft
+  company: Company
+}
+
 export interface ScrapingJob {
   id: number
   city?: string

@@ -1,17 +1,16 @@
 'use client'
 
-import { Company, EmailDraft } from '@/lib/types'
+import { Company, EmailDraft, DraftEntry } from '@/lib/types'
 
-export interface DraftEntry {
-  draft: EmailDraft
-  company: Company
-}
+// Re-export for backward compat — components should import from @/lib/types instead
+export type { DraftEntry }
 
 interface Props {
   entries: DraftEntry[]
   errors: Record<number, string>
-  onView: (entry: DraftEntry) => void
+  onReview: (entry: DraftEntry, index: number) => void
   onEdit: (entry: DraftEntry) => void
+  onDelete: (draftId: number) => void
 }
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -21,57 +20,60 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   sent:     { label: 'Gönderildi', cls: 'bg-blue-900/50 text-blue-400' },
 }
 
-export default function EmailDraftsList({ entries, errors, onView, onEdit }: Props) {
+export default function EmailDraftsList({ entries, errors, onReview, onEdit, onDelete }: Props) {
+  const draftEntries = entries.filter(e => e.draft.status === 'draft' || e.draft.status === 'approved')
+
   return (
-    <div className="divide-y divide-[#1a1a28]">
-      {entries.map(entry => {
+    <div>
+      {/* Table header */}
+      <div className="grid grid-cols-[1fr_2fr_auto_auto] gap-4 px-5 py-2 text-[11px] text-gray-600 uppercase tracking-wide border-b border-[#1e1e2e]">
+        <span>Firma</span>
+        <span>Konu</span>
+        <span>Durum</span>
+        <span>İşlem</span>
+      </div>
+
+      {/* Rows */}
+      {entries.map((entry, idx) => {
         const { draft, company } = entry
         const st = STATUS[draft.status ?? 'draft'] ?? STATUS.draft
-        const preview =
-          draft.body_plain?.slice(0, 130) ??
-          draft.body_html?.replace(/<[^>]+>/g, '').slice(0, 130)
 
         return (
           <div
             key={draft.id}
-            className="px-5 py-4 hover:bg-[#0f0f16] transition-colors"
+            className="grid grid-cols-[1fr_2fr_auto_auto] gap-4 items-center px-5 py-3.5 hover:bg-[#0f0f16] transition-colors border-b border-[#1a1a28] last:border-b-0"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                {/* Firm + status */}
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-white text-sm truncate">
-                    {company.name}
-                  </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 ${st.cls}`}>
-                    {st.label}
-                  </span>
-                </div>
-                {/* Subject */}
-                <p className="text-sm text-accent font-medium truncate">{draft.subject}</p>
-                {/* Preview */}
-                {preview && (
-                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                    {preview}…
-                  </p>
-                )}
-              </div>
+            {/* Company */}
+            <span className="text-sm font-medium text-white truncate">{company.name}</span>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <button
-                  onClick={() => onView(entry)}
-                  className="text-xs text-gray-400 hover:text-white border border-[#2a2a3e] hover:border-[#3a3a5e] px-2.5 py-1 rounded-lg transition-colors"
-                >
-                  Görüntüle
-                </button>
-                <button
-                  onClick={() => onEdit(entry)}
-                  className="text-xs text-gray-400 hover:text-white border border-[#2a2a3e] hover:border-[#3a3a5e] px-2.5 py-1 rounded-lg transition-colors"
-                >
-                  Düzenle
-                </button>
-              </div>
+            {/* Subject */}
+            <span className="text-sm text-accent truncate">{draft.subject}</span>
+
+            {/* Status */}
+            <span className={`text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap ${st.cls}`}>
+              {st.label}
+            </span>
+
+            {/* Actions */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => onReview(entry, idx)}
+                className="text-xs text-gray-400 hover:text-white border border-[#2a2a3e] hover:border-[#3a3a5e] px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+              >
+                İncele
+              </button>
+              <button
+                onClick={() => onEdit(entry)}
+                className="text-xs text-gray-400 hover:text-white border border-[#2a2a3e] hover:border-[#3a3a5e] px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Düzenle
+              </button>
+              <button
+                onClick={() => onDelete(draft.id)}
+                className="text-xs text-red-500 hover:text-red-400 border border-red-900/30 hover:border-red-800/50 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                Sil
+              </button>
             </div>
           </div>
         )
@@ -79,7 +81,7 @@ export default function EmailDraftsList({ entries, errors, onView, onEdit }: Pro
 
       {/* Error rows */}
       {Object.entries(errors).map(([cid, msg]) => (
-        <div key={cid} className="px-5 py-3 bg-red-950/20">
+        <div key={cid} className="px-5 py-3 bg-red-950/20 border-b border-[#1a1a28]">
           <p className="text-sm text-red-400">❌ Firma {cid}: {msg}</p>
         </div>
       ))}

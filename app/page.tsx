@@ -11,12 +11,21 @@ const ESTIMATED_TOTAL = 20
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
+type Step = 1 | 2 | 3
+
+const STEPS: { id: Step; label: string }[] = [
+  { id: 1, label: 'Firma Ara' },
+  { id: 2, label: 'Email Oluştur' },
+  { id: 3, label: 'İncele & Onayla' },
+]
+
 export default function Home() {
   const [jobId, setJobId] = useState<number | null>(null)
   const [jobStartedAt, setJobStartedAt] = useState<string | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [showEmailGen, setShowEmailGen] = useState(false)
+  const [activeStep, setActiveStep] = useState<Step>(1)
 
   // ── Poll job status ──────────────────────────────────────────────────────
   const { data: jobData, mutate: refetchJob } = useSWR(
@@ -52,18 +61,28 @@ export default function Home() {
     setJobId(id)
     setJobStartedAt(startedAt)
     setCompanies([])
+    setActiveStep(1)
   }
 
   const handleRetry = () => {
     setJobId(null)
     setJobStartedAt(null)
     setCompanies([])
+    setShowEmailGen(false)
+    setActiveStep(1)
     refetchJob()
   }
 
   const handleGenerateEmails = (ids: number[]) => {
     setSelectedIds(ids)
     setShowEmailGen(true)
+    setActiveStep(2)
+  }
+
+  const handleEmailGenClose = () => {
+    setShowEmailGen(false)
+    setSelectedIds([])
+    setActiveStep(companies.length > 0 ? 1 : 1)
   }
 
   return (
@@ -76,10 +95,41 @@ export default function Home() {
             <span className="font-bold tracking-tight">B2B Scraper</span>
           </div>
           <span className="text-[11px] text-gray-600 bg-[#1a1a28] border border-[#2a2a3e] px-3 py-1 rounded-full">
-            Sprint 3
+            Sprint 4
           </span>
         </div>
       </header>
+
+      {/* Workflow step indicator */}
+      <div className="border-b border-[#1e1e2e] bg-[#0c0c10]">
+        <div className="max-w-6xl mx-auto px-6 h-12 flex items-center gap-0">
+          {STEPS.map((step, i) => {
+            const isActive = activeStep === step.id
+            const isDone = activeStep > step.id
+            return (
+              <div key={step.id} className="flex items-center">
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  isActive ? 'text-white' : isDone ? 'text-gray-500' : 'text-gray-700'
+                }`}>
+                  <span className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center flex-shrink-0 ${
+                    isActive
+                      ? 'bg-accent text-[#0f0f13]'
+                      : isDone
+                      ? 'bg-green-800 text-green-300'
+                      : 'bg-[#1e1e2e] text-gray-600'
+                  }`}>
+                    {isDone ? '✓' : step.id}
+                  </span>
+                  <span className="text-xs font-medium">{step.label}</span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <span className="text-gray-800 text-xs mx-1">›</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-4">
         {/* Search form */}
@@ -142,7 +192,7 @@ export default function Home() {
         )}
 
         {/* Results table */}
-        {companies.length > 0 && (
+        {companies.length > 0 && !showEmailGen && (
           <CompaniesTable companies={companies} onGenerateEmails={handleGenerateEmails} />
         )}
 
@@ -151,7 +201,7 @@ export default function Home() {
           <EmailGenerator
             companyIds={selectedIds}
             companies={companies}
-            onClose={() => { setShowEmailGen(false); setSelectedIds([]) }}
+            onClose={handleEmailGenClose}
           />
         )}
 

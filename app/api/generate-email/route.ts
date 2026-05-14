@@ -17,6 +17,42 @@ function extractJson(text: string): string {
   return obj ? obj[0] : text
 }
 
+// ─── GET /api/generate-email?companyIds=1,2,3 ────────────────────────────────
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const raw = searchParams.get('companyIds')
+  if (!raw) return NextResponse.json({ error: 'companyIds gerekli' }, { status: 400 })
+
+  const ids = raw.split(',').map(Number).filter(Boolean)
+  if (ids.length === 0) return NextResponse.json({ drafts: [] })
+
+  const { data: drafts, error } = await supabaseAdmin
+    .from('email_drafts')
+    .select('*')
+    .in('company_id', ids)
+    .order('created_at', { ascending: false })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ drafts })
+}
+
+// ─── DELETE /api/generate-email?draftId=X ────────────────────────────────────
+
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const draftId = Number(searchParams.get('draftId'))
+  if (!draftId) return NextResponse.json({ error: 'draftId gerekli' }, { status: 400 })
+
+  const { error } = await supabaseAdmin
+    .from('email_drafts')
+    .delete()
+    .eq('id', draftId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 // ─── POST /api/generate-email ─────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -141,7 +177,13 @@ export async function PATCH(request: NextRequest) {
   if (subject !== undefined) update.subject = subject
   if (body_html !== undefined) update.body_html = body_html
   if (body_plain !== undefined) update.body_plain = body_plain
-  if (status !== undefined) update.status = status
+  if (status !== undefined) {
+    update.status = status
+    if (status === 'approved') {
+      update.approved_by = 'adnan'
+      update.approved_at = new Date().toISOString()
+    }
+  }
 
   const { data: draft, error } = await supabaseAdmin
     .from('email_drafts')

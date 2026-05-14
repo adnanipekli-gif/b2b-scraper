@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Company, EmailDraft } from '@/lib/types'
-import EmailDraftsList, { DraftEntry } from './EmailDraftsList'
-import EmailPreviewModal from './EmailPreviewModal'
-import EmailEditor from './EmailEditor'
+import { Company, EmailDraft, DraftEntry } from '@/lib/types'
+import { useEmailDraft } from '@/app/hooks/useEmailDraft'
+import EmailDraftsList from './EmailDraftsList'
+import EmailApprovalModal from './EmailApprovalModal'
+import FullEmailEditor from './FullEmailEditor'
 
 interface Props {
   companyIds: number[]
@@ -13,12 +14,21 @@ interface Props {
 }
 
 export default function EmailGenerator({ companyIds, companies, onClose }: Props) {
-  const [drafts, setDrafts] = useState<DraftEntry[]>([])
   const [generating, setGenerating] = useState(false)
   const [currentIdx, setCurrentIdx] = useState(-1)
-  const [errors, setErrors] = useState<Record<number, string>>({})
-  const [preview, setPreview] = useState<DraftEntry | null>(null)
-  const [editing, setEditing] = useState<DraftEntry | null>(null)
+  const [genErrors, setGenErrors] = useState<Record<number, string>>({})
+  const [approvalEntry, setApprovalEntry] = useState<DraftEntry | null>(null)
+  const [approvalIndex, setApprovalIndex] = useState(0)
+  const [editingEntry, setEditingEntry] = useState<DraftEntry | null>(null)
+
+  const {
+    drafts,
+    addDraft,
+    updateDraft,
+    approveDraft,
+    rejectDraft,
+    deleteDraft,
+  } = useEmailDraft()
 
   const selected = companyIds
     .map(id => companies.find(c => c.id === id))
@@ -26,13 +36,11 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
 
   const generate = async () => {
     setGenerating(true)
-    setDrafts([])
-    setErrors({})
+    setGenErrors({})
 
     for (let i = 0; i < selected.length; i++) {
       const company = selected[i]
       setCurrentIdx(i)
-
       const tone = company.segment === 'soguk_depo' ? 'teknik' : 'profesyonel'
 
       try {
@@ -44,10 +52,10 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? 'Email oluşturulamadı')
-        setDrafts(prev => [...prev, { draft: data.draft as EmailDraft, company }])
+        addDraft({ draft: data.draft as EmailDraft, company })
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Bilinmeyen hata'
-        setErrors(prev => ({ ...prev, [company.id]: msg }))
+        setGenErrors(prev => ({ ...prev, [company.id]: msg }))
       }
     }
 
@@ -55,21 +63,61 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
     setCurrentIdx(-1)
   }
 
-  const updateDraft = (updated: EmailDraft) => {
-    setDrafts(prev =>
-      prev.map(e => (e.draft.id === updated.id ? { ...e, draft: updated } : e))
-    )
-    setPreview(prev =>
-      prev?.draft.id === updated.id ? { ...prev, draft: updated } : prev
-    )
-    setEditing(prev =>
-      prev?.draft.id === updated.id ? { ...prev, draft: updated } : prev
-    )
+  const handleReview = (entry: DraftEntry, index: number) => {
+    setApprovalEntry(entry)
+    setApprovalIndex(index)
   }
 
-  const currentCompany = currentIdx >= 0 ? selected[currentIdx] : null
-  const doneCount = drafts.length + Object.keys(errors).length
+  const handleApprovalNext = () => {
+    const next = approvalIndex + 1
+    if (next < drafts.length) {
+      setApprovalEntry(drafts[next])
+      setApprovalIndex(next)
+    } else {
+      setApprovalEntry(null)
+    }
+  }
+
+  const handleApprovalPrev = () => {
+    const prev = approvalIndex - 1
+    if (prev >= 0) {
+      setApprovalEntry(drafts[prev])
+      setApprovalIndex(prev)
+    }
+  }
+
+  const handleApprove = async (draftId: number) => {
+    await approveDraft(draftId)
+    // Keep modal open with refreshed entry
+    const updated = drafts.find(e => e.draft.id === draftId)
+    if (updated) setApprovalEntry({ ...updated, draft: { ...updated.draft, status: 'approved' } })
+  }
+
+  const handleReject = async (draftId: number) => {
+    await rejectDraft(draftId)
+  }
+
+  const handleDelete = async (draftId: number) => {
+    if (!confirm('Bu taslağı silmek istediğinize emin misiniz?')) return
+    await deleteDraft(draftId)
+    if (approvalEntry?.draft.id === draftId) setApprovalEntry(null)
+  }
+
+  const handleEditorSave = (updated: EmailDraft) => {
+    updateDraft(updated.id, {
+      subject: updated.subject,
+      body_html: updated.body_html,
+      body_plain: updated.body_plain,
+    })
+    // If approval modal is open for this draft, refresh it
+    if (approvalEntry?.draft.id === updated.id) {
+      setApprovalEntry(prev => prev ? { ...prev, draft: updated } : null)
+    }
+  }
+
+  const doneCount = drafts.length + Object.keys(genErrors).length
   const progress = selected.length > 0 ? (doneCount / selected.length) * 100 : 0
+  const currentCompany = currentIdx >= 0 ? selected[currentIdx] : null
 
   return (
     <>
@@ -109,7 +157,7 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
           </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Generation progress */}
         {generating && (
           <div className="px-5 py-4 border-b border-[#1e1e2e] bg-[#0f0f16]">
             <div className="flex items-center gap-3 mb-3">
@@ -135,7 +183,7 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
         )}
 
         {/* Empty state */}
-        {!generating && drafts.length === 0 && Object.keys(errors).length === 0 && (
+        {!generating && drafts.length === 0 && Object.keys(genErrors).length === 0 && (
           <div className="px-5 py-12 text-center text-gray-600">
             <p className="text-3xl mb-3">✉️</p>
             <p className="text-sm">
@@ -147,41 +195,48 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
           </div>
         )}
 
-        {/* Draft list */}
-        {(drafts.length > 0 || Object.keys(errors).length > 0) && (
+        {/* Drafts table */}
+        {(drafts.length > 0 || Object.keys(genErrors).length > 0) && (
           <EmailDraftsList
             entries={drafts}
-            errors={errors}
-            onView={setPreview}
-            onEdit={setEditing}
+            errors={genErrors}
+            onReview={handleReview}
+            onEdit={entry => setEditingEntry(entry)}
+            onDelete={handleDelete}
           />
         )}
 
-        {/* Summary footer when done */}
+        {/* Footer counter */}
         {!generating && drafts.length > 0 && (
           <div className="px-5 py-3 border-t border-[#1e1e2e] text-xs text-gray-600">
             {drafts.length} taslak oluşturuldu
-            {Object.keys(errors).length > 0 &&
-              ` · ${Object.keys(errors).length} hata`}
+            {Object.keys(genErrors).length > 0 &&
+              ` · ${Object.keys(genErrors).length} hata`}
           </div>
         )}
       </div>
 
-      {/* Modals rendered outside the card so they overlay everything */}
-      {preview && (
-        <EmailPreviewModal
-          entry={preview}
-          onClose={() => setPreview(null)}
-          onEdit={() => { setEditing(preview); setPreview(null) }}
-          onUpdate={updateDraft}
+      {/* Approval modal */}
+      {approvalEntry && (
+        <EmailApprovalModal
+          entry={approvalEntry}
+          currentIndex={approvalIndex}
+          totalCount={drafts.length}
+          onClose={() => setApprovalEntry(null)}
+          onEdit={entry => { setEditingEntry(entry); setApprovalEntry(null) }}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onNext={handleApprovalNext}
+          onPrevious={handleApprovalPrev}
         />
       )}
 
-      {editing && (
-        <EmailEditor
-          entry={editing}
-          onClose={() => setEditing(null)}
-          onSave={updated => { updateDraft(updated); setEditing(null) }}
+      {/* Full editor */}
+      {editingEntry && (
+        <FullEmailEditor
+          entry={editingEntry}
+          onClose={() => setEditingEntry(null)}
+          onSave={updated => { handleEditorSave(updated); setEditingEntry(null) }}
         />
       )}
     </>
