@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import SearchForm from './components/SearchForm'
 import CompaniesTable from './components/CompaniesTable'
 import EmailGenerator from './components/EmailGenerator'
+import SentEmailsList from './components/SentEmailsList'
 import { Company } from '@/lib/types'
 
 const ESTIMATED_TOTAL = 20
@@ -26,6 +27,7 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [showEmailGen, setShowEmailGen] = useState(false)
   const [activeStep, setActiveStep] = useState<Step>(1)
+  const [showSentEmails, setShowSentEmails] = useState(false)
 
   // ── Poll job status ──────────────────────────────────────────────────────
   const { data: jobData, mutate: refetchJob } = useSWR(
@@ -94,9 +96,21 @@ export default function Home() {
             <span className="text-lg">⚡</span>
             <span className="font-bold tracking-tight">B2B Scraper</span>
           </div>
-          <span className="text-[11px] text-gray-600 bg-[#1a1a28] border border-[#2a2a3e] px-3 py-1 rounded-full">
-            Sprint 4
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSentEmails(v => !v)}
+              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                showSentEmails
+                  ? 'bg-accent/10 text-accent border-accent/30'
+                  : 'text-gray-600 bg-[#1a1a28] border-[#2a2a3e] hover:text-white'
+              }`}
+            >
+              ✉️ Gönderilenler
+            </button>
+            <span className="text-[11px] text-gray-600 bg-[#1a1a28] border border-[#2a2a3e] px-3 py-1 rounded-full">
+              Sprint 5
+            </span>
+          </div>
         </div>
       </header>
 
@@ -204,6 +218,9 @@ export default function Home() {
             onClose={handleEmailGenClose}
           />
         )}
+
+        {/* Sent emails panel */}
+        {showSentEmails && <SentEmailsList />}
 
         {/* Empty state after completed job */}
         {job?.status === 'completed' && companies.length === 0 && (

@@ -28,6 +28,8 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
     approveDraft,
     rejectDraft,
     deleteDraft,
+    sendDraft,
+    sentCount,
   } = useEmailDraft()
 
   const selected = companyIds
@@ -208,10 +210,12 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
 
         {/* Footer counter */}
         {!generating && drafts.length > 0 && (
-          <div className="px-5 py-3 border-t border-[#1e1e2e] text-xs text-gray-600">
-            {drafts.length} taslak oluşturuldu
-            {Object.keys(genErrors).length > 0 &&
-              ` · ${Object.keys(genErrors).length} hata`}
+          <div className="px-5 py-3 border-t border-[#1e1e2e] text-xs text-gray-600 flex gap-4">
+            <span>{drafts.length} taslak</span>
+            {sentCount > 0 && <span className="text-blue-400">{sentCount} gönderildi</span>}
+            {Object.keys(genErrors).length > 0 && (
+              <span className="text-red-500">{Object.keys(genErrors).length} hata</span>
+            )}
           </div>
         )}
       </div>
@@ -226,6 +230,7 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
           onEdit={entry => { setEditingEntry(entry); setApprovalEntry(null) }}
           onApprove={handleApprove}
           onReject={handleReject}
+          onSend={sendDraft}
           onNext={handleApprovalNext}
           onPrevious={handleApprovalPrev}
         />

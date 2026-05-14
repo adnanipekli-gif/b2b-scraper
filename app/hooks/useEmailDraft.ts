@@ -3,11 +3,22 @@
 import { useState, useCallback } from 'react'
 import { EmailDraft, Company, DraftEntry } from '@/lib/types'
 
+export type SendingStatus = 'idle' | 'sending' | 'success' | 'error'
+
+export interface SendResult {
+  messageId: string
+  sentAt: string
+  recipientEmail: string
+}
+
 export function useEmailDraft() {
   const [drafts, setDrafts] = useState<DraftEntry[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [sendingStatus, setSendingStatus] = useState<SendingStatus>('idle')
+  const [sentCount, setSentCount] = useState(0)
+  const [failedCount, setFailedCount] = useState(0)
 
   const currentDraft = drafts[currentIndex] ?? null
 
@@ -74,6 +85,42 @@ export function useEmailDraft() {
     setCurrentIndex(prev => Math.max(0, prev - 1))
   }, [])
 
+  const sendDraft = useCallback(async (draft_id: number): Promise<SendResult> => {
+    setSendingStatus('sending')
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draft_id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Gönderme hatası')
+
+      // Update local draft status to 'sent'
+      setDrafts(prev =>
+        prev.map(e =>
+          e.draft.id === draft_id
+            ? { ...e, draft: { ...e.draft, status: 'sent' as const } }
+            : e
+        )
+      )
+      setSentCount(prev => prev + 1)
+      setSendingStatus('success')
+
+      return {
+        messageId: data.message_id,
+        sentAt: data.sent_at,
+        recipientEmail: data.recipient_email,
+      }
+    } catch (err) {
+      setFailedCount(prev => prev + 1)
+      setSendingStatus('error')
+      throw err
+    }
+  }, [])
+
+  const resetSendingStatus = useCallback(() => setSendingStatus('idle'), [])
+
   const addDraft = useCallback((entry: DraftEntry) => {
     setDrafts(prev => [...prev, entry])
   }, [])
@@ -97,11 +144,16 @@ export function useEmailDraft() {
     totalCount: drafts.length,
     loading,
     error,
+    sendingStatus,
+    sentCount,
+    failedCount,
     loadDrafts,
     updateDraft,
     approveDraft,
     rejectDraft,
     deleteDraft,
+    sendDraft,
+    resetSendingStatus,
     addDraft,
     goToNext,
     goPrevious,
