@@ -35,7 +35,8 @@ function sleep(ms: number): Promise<void> {
 export async function scrapeGoogleMaps(
   city: string,
   keyword: string,
-  segment: string
+  segment: string,
+  onCompany?: (company: RawCompany) => Promise<void>
 ): Promise<RawCompany[]> {
   const browser = await puppeteer.launch(LAUNCH_OPTS)
   const companies: RawCompany[] = []
@@ -124,7 +125,9 @@ export async function scrapeGoogleMaps(
           })
 
           if (data?.name) {
-            companies.push({ city, segment, ...data, name: data.name })
+            const company: RawCompany = { city, segment, ...data, name: data.name }
+            if (onCompany) await onCompany(company)
+            companies.push(company)
           }
 
           success = true
