@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import SearchForm from './components/SearchForm'
 import CompaniesTable from './components/CompaniesTable'
+import EmailGenerator from './components/EmailGenerator'
 import { Company } from '@/lib/types'
 
 const ESTIMATED_TOTAL = 20
@@ -14,6 +15,8 @@ export default function Home() {
   const [jobId, setJobId] = useState<number | null>(null)
   const [jobStartedAt, setJobStartedAt] = useState<string | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [showEmailGen, setShowEmailGen] = useState(false)
 
   // ── Poll job status ──────────────────────────────────────────────────────
   const { data: jobData, mutate: refetchJob } = useSWR(
@@ -59,8 +62,8 @@ export default function Home() {
   }
 
   const handleGenerateEmails = (ids: number[]) => {
-    // Wired in Sprint 3
-    alert(`${ids.length} firma seçildi — Sprint 3'te email oluşturma eklenecek`)
+    setSelectedIds(ids)
+    setShowEmailGen(true)
   }
 
   return (
@@ -73,7 +76,7 @@ export default function Home() {
             <span className="font-bold tracking-tight">B2B Scraper</span>
           </div>
           <span className="text-[11px] text-gray-600 bg-[#1a1a28] border border-[#2a2a3e] px-3 py-1 rounded-full">
-            Sprint 2
+            Sprint 3
           </span>
         </div>
       </header>
@@ -141,6 +144,15 @@ export default function Home() {
         {/* Results table */}
         {companies.length > 0 && (
           <CompaniesTable companies={companies} onGenerateEmails={handleGenerateEmails} />
+        )}
+
+        {/* Email generator — shown when user clicks "Email Oluştur" */}
+        {showEmailGen && companies.length > 0 && (
+          <EmailGenerator
+            companyIds={selectedIds}
+            companies={companies}
+            onClose={() => { setShowEmailGen(false); setSelectedIds([]) }}
+          />
         )}
 
         {/* Empty state after completed job */}
