@@ -6,7 +6,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { company_id, tone = 'professional' } = body
+  const { company_id, tone = 'profesyonel' } = body
 
   const { data: company, error: companyError } = await supabaseAdmin
     .from('companies')
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (companyError || !company) {
-    return NextResponse.json({ error: 'Company not found' }, { status: 404 })
+    return NextResponse.json({ error: 'Firma bulunamadı' }, { status: 404 })
   }
 
   const message = await anthropic.messages.create({
@@ -24,29 +24,32 @@ export async function POST(request: NextRequest) {
     messages: [
       {
         role: 'user',
-        content: `Write a ${tone} B2B outreach email for the following company:
-Company: ${company.name}
-Industry: ${company.industry ?? 'Unknown'}
-Location: ${company.location ?? 'Unknown'}
-Description: ${company.description ?? 'No description available'}
-Contact: ${company.contact_name ?? 'Decision maker'}, ${company.contact_title ?? ''}
+        content: `${tone} bir B2B soğuk email yaz. Şirket bilgileri:
+Firma: ${company.name}
+Şehir: ${company.city ?? 'Bilinmiyor'}
+Segment: ${company.segment ?? 'Bilinmiyor'}
+Şube sayısı: ${company.branches ?? 'Bilinmiyor'}
+Instagram takipçi: ${company.instagram_followers ?? 'Bilinmiyor'}
+Google puan: ${company.google_maps_rating ?? 'Bilinmiyor'}
+Büyüme sinyali: ${company.growth_signal ?? 'Bilinmiyor'}
+Notlar: ${company.notes ?? ''}
 
-Write a concise, personalized cold email. Return JSON with keys: subject, body`,
+Kısa, kişiselleştirilmiş bir email yaz. JSON formatında döndür: { "subject": "...", "body_html": "...", "body_plain": "..." }`,
       },
     ],
   })
 
   const content = message.content[0]
   if (content.type !== 'text') {
-    return NextResponse.json({ error: 'Unexpected response from AI' }, { status: 500 })
+    return NextResponse.json({ error: 'AI yanıtı beklenmedik formatta' }, { status: 500 })
   }
 
-  let parsed: { subject: string; body: string }
+  let parsed: { subject: string; body_html: string; body_plain: string }
   try {
     const jsonMatch = content.text.match(/\{[\s\S]*\}/)
     parsed = JSON.parse(jsonMatch?.[0] ?? content.text)
   } catch {
-    return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
+    return NextResponse.json({ error: 'AI yanıtı parse edilemedi' }, { status: 500 })
   }
 
   const { data: draft, error: draftError } = await supabaseAdmin
@@ -54,10 +57,9 @@ Write a concise, personalized cold email. Return JSON with keys: subject, body`,
     .insert({
       company_id,
       subject: parsed.subject,
-      body: parsed.body,
-      tone,
+      body_html: parsed.body_html,
+      body_plain: parsed.body_plain,
       status: 'draft',
-      generated_at: new Date().toISOString(),
     })
     .select()
     .single()

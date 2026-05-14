@@ -16,31 +16,31 @@ async function getGmailAccessToken(): Promise<string> {
   })
 
   const data = await res.json()
-  if (!data.access_token) throw new Error('Failed to obtain Gmail access token')
+  if (!data.access_token) throw new Error('Gmail access token alınamadı')
   return data.access_token
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { email_draft_id } = body
+  const { draft_id } = body
 
   const { data: draft, error: draftError } = await supabaseAdmin
     .from('email_drafts')
     .select('*, companies(*)')
-    .eq('id', email_draft_id)
+    .eq('id', draft_id)
     .single()
 
   if (draftError || !draft) {
-    return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+    return NextResponse.json({ error: 'Taslak bulunamadı' }, { status: 404 })
   }
 
   if (draft.status !== 'approved') {
-    return NextResponse.json({ error: 'Draft must be approved before sending' }, { status: 400 })
+    return NextResponse.json({ error: 'Göndermeden önce taslak onaylanmalı' }, { status: 400 })
   }
 
-  const toEmail = draft.companies?.contact_email
+  const toEmail = draft.companies?.email
   if (!toEmail) {
-    return NextResponse.json({ error: 'No contact email for this company' }, { status: 400 })
+    return NextResponse.json({ error: 'Bu firma için email adresi yok' }, { status: 400 })
   }
 
   const accessToken = await getGmailAccessToken()
@@ -48,9 +48,9 @@ export async function POST(request: NextRequest) {
   const emailContent = [
     `To: ${toEmail}`,
     `Subject: ${draft.subject}`,
-    'Content-Type: text/plain; charset=utf-8',
+    'Content-Type: text/html; charset=utf-8',
     '',
-    draft.body,
+    draft.body_html ?? draft.body_plain ?? '',
   ].join('\r\n')
 
   const encoded = Buffer.from(emailContent).toString('base64url')
@@ -66,20 +66,19 @@ export async function POST(request: NextRequest) {
 
   const gmailData = await gmailRes.json()
   if (!gmailRes.ok) {
-    return NextResponse.json({ error: gmailData.error?.message ?? 'Gmail send failed' }, { status: 500 })
+    return NextResponse.json({ error: gmailData.error?.message ?? 'Gmail gönderilemedi' }, { status: 500 })
   }
 
   const { data: sentEmail, error: sentError } = await supabaseAdmin
     .from('sent_emails')
     .insert({
       company_id: draft.company_id,
-      email_draft_id,
-      to_email: toEmail,
-      to_name: draft.companies?.contact_name,
+      draft_id,
+      recipient_email: toEmail,
+      recipient_name: draft.companies?.name,
       subject: draft.subject,
-      body: draft.body,
       gmail_message_id: gmailData.id,
-      thread_id: gmailData.threadId,
+      status: 'sent',
       sent_at: new Date().toISOString(),
     })
     .select()
@@ -92,7 +91,7 @@ export async function POST(request: NextRequest) {
   await supabaseAdmin
     .from('email_drafts')
     .update({ status: 'sent' })
-    .eq('id', email_draft_id)
+    .eq('id', draft_id)
 
   return NextResponse.json({ sent_email: sentEmail }, { status: 201 })
 }

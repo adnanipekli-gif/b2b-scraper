@@ -1,66 +1,74 @@
 export interface Company {
-  id: string
+  id: number
   name: string
-  website: string
-  industry?: string
-  employee_count?: number
-  location?: string
-  description?: string
-  linkedin_url?: string
-  contact_email?: string
-  contact_name?: string
-  contact_title?: string
-  scraped_at?: string
+  city?: string
+  segment?: 'yerel_zincir' | 'soguk_depo'
+  branches?: number
+  phone?: string
+  email?: string
+  website?: string
+  instagram_handle?: string
+  instagram_followers?: number
+  google_maps_rating?: number
+  google_maps_reviews?: number
+  design_score?: number
+  growth_signal?: 'expanding' | 'stable' | 'unknown'
+  notes?: string
   created_at: string
   updated_at: string
 }
 
 export interface EmailDraft {
-  id: string
-  company_id: string
-  subject: string
-  body: string
-  tone?: string
-  status: 'draft' | 'approved' | 'rejected' | 'sent'
-  generated_at: string
+  id: number
+  company_id: number
+  subject?: string
+  body_html?: string
+  body_plain?: string
+  status: 'draft' | 'approved' | 'sent' | 'rejected'
+  approved_by?: string
+  approved_at?: string
   created_at: string
   updated_at: string
 }
 
 export interface SentEmail {
-  id: string
-  company_id: string
-  email_draft_id: string
-  to_email: string
-  to_name?: string
-  subject: string
-  body: string
+  id: number
+  company_id: number
+  draft_id?: number
   gmail_message_id?: string
-  thread_id?: string
+  recipient_email?: string
+  recipient_name?: string
+  subject?: string
   sent_at: string
+  status?: 'sent' | 'bounced' | 'spam'
   created_at: string
 }
 
 export interface EmailTracking {
-  id: string
-  sent_email_id: string
-  event_type: 'opened' | 'clicked' | 'replied' | 'bounced' | 'unsubscribed'
-  occurred_at: string
-  metadata?: Record<string, unknown>
+  id: number
+  sent_email_id: number
+  opened: boolean
+  opened_at?: string
+  open_count: number
+  clicked: boolean
+  clicked_at?: string
+  click_count: number
+  links_clicked?: string[]
+  reply_received: boolean
+  replied_at?: string
+  last_activity?: string
   created_at: string
+  updated_at: string
 }
 
 export interface ScrapingJob {
-  id: string
+  id: number
+  city?: string
+  segment?: string
   status: 'pending' | 'running' | 'completed' | 'failed'
-  source_url?: string
-  target_industry?: string
-  target_location?: string
-  companies_found: number
-  companies_processed: number
-  error_message?: string
-  started_at?: string
+  companies_found?: number
+  started_at: string
   completed_at?: string
+  error_message?: string
   created_at: string
-  updated_at: string
 }
