@@ -25,6 +25,23 @@ async function getGmailAccessToken(): Promise<string> {
   return data.access_token
 }
 
+function injectTracking(html: string, sentEmailId: number, appUrl: string): string {
+  // Wrap http/https links with click-tracking redirects
+  const withClicks = html.replace(
+    /href="(https?:\/\/[^"]+)"/gi,
+    (_, url) =>
+      `href="${appUrl}/api/track-click?id=${sentEmailId}&url=${encodeURIComponent(url)}"`,
+  )
+
+  // Append 1×1 open-tracking pixel
+  const pixel = `<img src="${appUrl}/api/track?id=${sentEmailId}" width="1" height="1" style="display:none;width:1px;height:1px" alt="" />`
+
+  if (/<\/body>/i.test(withClicks)) {
+    return withClicks.replace(/<\/body>/i, `${pixel}\n</body>`)
+  }
+  return withClicks + '\n' + pixel
+}
+
 function buildMimeMessage(opts: {
   from: string
   to: string
@@ -134,7 +151,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Taslak bulunamadı' }, { status: 404 })
   }
 
-  if (draft.status !== 'approved') {
+  // Allow 'approved' and 'sent' (resend)
+  if (draft.status !== 'approved' && draft.status !== 'sent') {
     return NextResponse.json(
       { error: 'Göndermeden önce taslak onaylanmalı' },
       { status: 400 },
@@ -154,6 +172,7 @@ export async function POST(request: NextRequest) {
   }
 
   const fromAddress = process.env.GMAIL_FROM_ADDRESS ?? 'adnan@ndgrouptr.com'
+  const appUrl = (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
 
   let accessToken: string
   try {
@@ -165,11 +184,36 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const sentAt = new Date().toISOString()
+
+  // Insert preliminary record to get the ID for tracking URLs
+  const { data: pendingSent, error: pendingError } = await supabaseAdmin
+    .from('sent_emails')
+    .insert({
+      company_id: draft.company_id,
+      draft_id,
+      recipient_email: toEmail,
+      recipient_name: draft.companies?.name,
+      subject: draft.subject,
+      status: 'sent',
+      sent_at: sentAt,
+    })
+    .select()
+    .single()
+
+  if (pendingError || !pendingSent) {
+    return NextResponse.json({ error: pendingError?.message ?? 'DB hatası' }, { status: 500 })
+  }
+
+  // Inject tracking pixel + link wrapping into HTML
+  const rawHtml = draft.body_html ?? draft.body_plain ?? ''
+  const trackedHtml = injectTracking(rawHtml, pendingSent.id, appUrl)
+
   const mimeMessage = buildMimeMessage({
     from: fromAddress,
     to: toEmail,
     subject: draft.subject ?? '(Konu yok)',
-    html: draft.body_html ?? draft.body_plain ?? '',
+    html: trackedHtml,
     plain: draft.body_plain ?? undefined,
   })
 
@@ -179,36 +223,23 @@ export async function POST(request: NextRequest) {
   try {
     gmailMessageId = await sendGmailWithRetry(accessToken, raw)
   } catch (err) {
+    // Clean up the pending record on failure
+    await supabaseAdmin.from('sent_emails').delete().eq('id', pendingSent.id)
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Gmail gönderilemedi' },
       { status: 500 },
     )
   }
 
-  const sentAt = new Date().toISOString()
-
-  const { data: sentEmail, error: sentError } = await supabaseAdmin
+  // Update with the actual Gmail message ID
+  await supabaseAdmin
     .from('sent_emails')
-    .insert({
-      company_id: draft.company_id,
-      draft_id,
-      recipient_email: toEmail,
-      recipient_name: draft.companies?.name,
-      subject: draft.subject,
-      gmail_message_id: gmailMessageId,
-      status: 'sent',
-      sent_at: sentAt,
-    })
-    .select()
-    .single()
+    .update({ gmail_message_id: gmailMessageId })
+    .eq('id', pendingSent.id)
 
-  if (sentError) {
-    return NextResponse.json({ error: sentError.message }, { status: 500 })
-  }
-
-  // Create tracking entry — fire and forget errors
+  // Create tracking entry
   await supabaseAdmin.from('email_tracking').insert({
-    sent_email_id: sentEmail.id,
+    sent_email_id: pendingSent.id,
     opened: false,
     open_count: 0,
     clicked: false,

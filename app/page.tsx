@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import useSWR from 'swr'
+import AppNav from './components/AppNav'
 import SearchForm from './components/SearchForm'
 import CompaniesTable from './components/CompaniesTable'
 import EmailGenerator from './components/EmailGenerator'
-import SentEmailsList from './components/SentEmailsList'
 import { Company } from '@/lib/types'
 
 const ESTIMATED_TOTAL = 20
-
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
 type Step = 1 | 2 | 3
@@ -27,16 +26,12 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [showEmailGen, setShowEmailGen] = useState(false)
   const [activeStep, setActiveStep] = useState<Step>(1)
-  const [showSentEmails, setShowSentEmails] = useState(false)
 
   // ── Poll job status ──────────────────────────────────────────────────────
   const { data: jobData, mutate: refetchJob } = useSWR(
     jobId ? `/api/scrape?jobId=${jobId}` : null,
     fetcher,
-    {
-      refreshInterval: data =>
-        data?.job?.status === 'running' ? 2000 : 0,
-    }
+    { refreshInterval: data => data?.job?.status === 'running' ? 2000 : 0 }
   )
 
   const job = jobData?.job
@@ -54,91 +49,51 @@ export default function Home() {
   )
 
   useEffect(() => {
-    if (companiesData?.companies) {
-      setCompanies(companiesData.companies)
-    }
+    if (companiesData?.companies) setCompanies(companiesData.companies)
   }, [companiesData])
 
   const handleJobStart = (id: number, startedAt: string) => {
-    setJobId(id)
-    setJobStartedAt(startedAt)
-    setCompanies([])
-    setActiveStep(1)
+    setJobId(id); setJobStartedAt(startedAt); setCompanies([]); setActiveStep(1)
   }
 
   const handleRetry = () => {
-    setJobId(null)
-    setJobStartedAt(null)
-    setCompanies([])
-    setShowEmailGen(false)
-    setActiveStep(1)
-    refetchJob()
+    setJobId(null); setJobStartedAt(null); setCompanies([])
+    setShowEmailGen(false); setActiveStep(1); refetchJob()
   }
 
   const handleGenerateEmails = (ids: number[]) => {
-    setSelectedIds(ids)
-    setShowEmailGen(true)
-    setActiveStep(2)
+    setSelectedIds(ids); setShowEmailGen(true); setActiveStep(2)
   }
 
   const handleEmailGenClose = () => {
-    setShowEmailGen(false)
-    setSelectedIds([])
-    setActiveStep(companies.length > 0 ? 1 : 1)
+    setShowEmailGen(false); setSelectedIds([]); setActiveStep(1)
   }
 
   return (
     <div className="min-h-screen bg-[#0f0f13] text-white">
-      {/* Header */}
-      <header className="border-b border-[#1e1e2e]">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="text-lg">⚡</span>
-            <span className="font-bold tracking-tight">B2B Scraper</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSentEmails(v => !v)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                showSentEmails
-                  ? 'bg-accent/10 text-accent border-accent/30'
-                  : 'text-gray-600 bg-[#1a1a28] border-[#2a2a3e] hover:text-white'
-              }`}
-            >
-              ✉️ Gönderilenler
-            </button>
-            <span className="text-[11px] text-gray-600 bg-[#1a1a28] border border-[#2a2a3e] px-3 py-1 rounded-full">
-              Sprint 5
-            </span>
-          </div>
-        </div>
-      </header>
+      <AppNav />
 
       {/* Workflow step indicator */}
       <div className="border-b border-[#1e1e2e] bg-[#0c0c10]">
-        <div className="max-w-6xl mx-auto px-6 h-12 flex items-center gap-0">
+        <div className="max-w-6xl mx-auto px-6 h-12 flex items-center">
           {STEPS.map((step, i) => {
             const isActive = activeStep === step.id
             const isDone = activeStep > step.id
             return (
               <div key={step.id} className="flex items-center">
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
                   isActive ? 'text-white' : isDone ? 'text-gray-500' : 'text-gray-700'
                 }`}>
                   <span className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center flex-shrink-0 ${
-                    isActive
-                      ? 'bg-accent text-[#0f0f13]'
-                      : isDone
-                      ? 'bg-green-800 text-green-300'
-                      : 'bg-[#1e1e2e] text-gray-600'
+                    isActive ? 'bg-accent text-[#0f0f13]'
+                    : isDone  ? 'bg-green-800 text-green-300'
+                    : 'bg-[#1e1e2e] text-gray-600'
                   }`}>
                     {isDone ? '✓' : step.id}
                   </span>
                   <span className="text-xs font-medium">{step.label}</span>
                 </div>
-                {i < STEPS.length - 1 && (
-                  <span className="text-gray-800 text-xs mx-1">›</span>
-                )}
+                {i < STEPS.length - 1 && <span className="text-gray-800 text-xs mx-1">›</span>}
               </div>
             )
           })}
@@ -146,17 +101,11 @@ export default function Home() {
       </div>
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-4">
-        {/* Search form */}
-        <SearchForm
-          onJobStart={handleJobStart}
-          isSearching={isSearching}
-          onRetry={handleRetry}
-        />
+        <SearchForm onJobStart={handleJobStart} isSearching={isSearching} onRetry={handleRetry} />
 
-        {/* Progress panel — shown while running or just finished */}
+        {/* Progress panel */}
         {job && (isSearching || job.status === 'completed' || jobFailed) && (
           <div className="bg-surface border border-[#1e1e2e] rounded-2xl p-5">
-            {/* Status row */}
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-white">
                 {isSearching && `Taranıyor... ${companiesFound} firma bulundu`}
@@ -164,26 +113,18 @@ export default function Home() {
                 {jobFailed && '❌ Scraping başarısız'}
               </span>
               <div className="flex items-center gap-2">
-                <span
-                  className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${
-                    isSearching
-                      ? 'bg-yellow-900/40 text-yellow-400'
-                      : job.status === 'completed'
-                      ? 'bg-green-900/40 text-green-400'
-                      : 'bg-red-900/40 text-red-400'
-                  }`}
-                >
+                <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${
+                  isSearching ? 'bg-yellow-900/40 text-yellow-400'
+                  : job.status === 'completed' ? 'bg-green-900/40 text-green-400'
+                  : 'bg-red-900/40 text-red-400'
+                }`}>
                   {isSearching ? 'Devam ediyor' : job.status === 'completed' ? 'Tamamlandı' : 'Başarısız'}
                 </span>
                 {job.city && (
-                  <span className="text-[11px] text-gray-600">
-                    {job.city} · {job.segment}
-                  </span>
+                  <span className="text-[11px] text-gray-600">{job.city} · {job.segment}</span>
                 )}
               </div>
             </div>
-
-            {/* Progress bar */}
             {!jobFailed && (
               <div className="h-1.5 bg-[#1e1e2e] rounded-full overflow-hidden">
                 <div
@@ -192,12 +133,8 @@ export default function Home() {
                 />
               </div>
             )}
-
-            {/* Counter / error */}
             {isSearching && (
-              <p className="text-xs text-gray-600 mt-1.5">
-                {companiesFound} / ~{ESTIMATED_TOTAL} tahmini
-              </p>
+              <p className="text-xs text-gray-600 mt-1.5">{companiesFound} / ~{ESTIMATED_TOTAL} tahmini</p>
             )}
             {jobFailed && job.error_message && (
               <p className="text-xs text-red-400 mt-2">{job.error_message}</p>
@@ -205,24 +142,14 @@ export default function Home() {
           </div>
         )}
 
-        {/* Results table */}
         {companies.length > 0 && !showEmailGen && (
           <CompaniesTable companies={companies} onGenerateEmails={handleGenerateEmails} />
         )}
 
-        {/* Email generator — shown when user clicks "Email Oluştur" */}
         {showEmailGen && companies.length > 0 && (
-          <EmailGenerator
-            companyIds={selectedIds}
-            companies={companies}
-            onClose={handleEmailGenClose}
-          />
+          <EmailGenerator companyIds={selectedIds} companies={companies} onClose={handleEmailGenClose} />
         )}
 
-        {/* Sent emails panel */}
-        {showSentEmails && <SentEmailsList />}
-
-        {/* Empty state after completed job */}
         {job?.status === 'completed' && companies.length === 0 && (
           <div className="text-center text-gray-600 py-16">
             <p className="text-4xl mb-3">🔍</p>
