@@ -50,13 +50,24 @@ export default function EmailGenerator({ companyIds, companies, onClose }: Props
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ company_id: company.id, tone }),
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(35_000),
         })
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('Retry-After') ?? '60'
+          throw new Error(`Hız limiti aşıldı. ${retryAfter}sn bekleyin.`)
+        }
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? 'Email oluşturulamadı')
         addDraft({ draft: data.draft as EmailDraft, company })
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Bilinmeyen hata'
+        let msg = 'Bilinmeyen hata'
+        if (err instanceof DOMException && err.name === 'TimeoutError') {
+          msg = 'Zaman aşımı — AI 35sn içinde yanıt vermedi'
+        } else if (err instanceof TypeError && err.message.includes('fetch')) {
+          msg = 'Bağlantı hatası — internet bağlantınızı kontrol edin'
+        } else if (err instanceof Error) {
+          msg = err.message
+        }
         setGenErrors(prev => ({ ...prev, [company.id]: msg }))
       }
     }

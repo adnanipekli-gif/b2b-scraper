@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import useSWR from 'swr'
 import AppNav from './components/AppNav'
 import SearchForm from './components/SearchForm'
@@ -22,7 +22,6 @@ const STEPS: { id: Step; label: string }[] = [
 export default function Home() {
   const [jobId, setJobId] = useState<number | null>(null)
   const [jobStartedAt, setJobStartedAt] = useState<string | null>(null)
-  const [companies, setCompanies] = useState<Company[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [showEmailGen, setShowEmailGen] = useState(false)
   const [activeStep, setActiveStep] = useState<Step>(1)
@@ -48,16 +47,14 @@ export default function Home() {
     fetcher
   )
 
-  useEffect(() => {
-    if (companiesData?.companies) setCompanies(companiesData.companies)
-  }, [companiesData])
+  const companies: Company[] = companiesData?.companies ?? []
 
   const handleJobStart = (id: number, startedAt: string) => {
-    setJobId(id); setJobStartedAt(startedAt); setCompanies([]); setActiveStep(1)
+    setJobId(id); setJobStartedAt(startedAt); setActiveStep(1)
   }
 
   const handleRetry = () => {
-    setJobId(null); setJobStartedAt(null); setCompanies([])
+    setJobId(null); setJobStartedAt(null)
     setShowEmailGen(false); setActiveStep(1); refetchJob()
   }
 

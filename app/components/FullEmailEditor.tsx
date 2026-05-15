@@ -99,7 +99,7 @@ export default function FullEmailEditor({ entry, onClose, onSave }: Props) {
               {saving && <span className="text-yellow-500">Kaydediliyor...</span>}
               {!saving && dirty && <span className="text-gray-500">Kaydedilmemiş değişiklikler</span>}
               {!saving && !dirty && lastSaved && (
-                <span className="text-green-600">✓ {fmtTime(lastSaved)}'de kaydedildi</span>
+                <span className="text-green-600">✓ {fmtTime(lastSaved)}&apos;de kaydedildi</span>
               )}
             </div>
             <button

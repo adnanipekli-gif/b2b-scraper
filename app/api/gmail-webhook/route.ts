@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-admin'
 
 // Gmail Push Notifications via Google Cloud Pub/Sub
 // Setup guide: https://developers.google.com/gmail/api/guides/push

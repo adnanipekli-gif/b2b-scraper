@@ -1,8 +1,7 @@
 'use client'
 
-import { Company, EmailDraft, DraftEntry } from '@/lib/types'
+import { DraftEntry } from '@/lib/types'
 
-// Re-export for backward compat — components should import from @/lib/types instead
 export type { DraftEntry }
 
 interface Props {
@@ -21,8 +20,6 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 }
 
 export default function EmailDraftsList({ entries, errors, onReview, onEdit, onDelete }: Props) {
-  const draftEntries = entries.filter(e => e.draft.status === 'draft' || e.draft.status === 'approved')
-
   return (
     <div>
       {/* Table header */}

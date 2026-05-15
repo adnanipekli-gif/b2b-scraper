@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -56,6 +57,15 @@ export async function DELETE(request: NextRequest) {
 // ─── POST /api/generate-email ─────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request)
+  const limit = rateLimit(ip, 'generate-email', { windowMs: 60_000, max: 20 })
+  if (!limit.success) {
+    return NextResponse.json(
+      { error: 'Çok fazla istek. Lütfen bir dakika bekleyin.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((limit.resetAt - Date.now()) / 1000)) } }
+    )
+  }
+
   const body = await request.json()
   const { company_id, tone = 'profesyonel' } = body
 

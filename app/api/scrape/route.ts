@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { scrapeGoogleMaps, scrapeInstagram, scrapeWebsite, RawCompany } from '@/lib/scraper'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const SEGMENT_KEYWORDS: Record<string, string> = {
   yerel_zincir: 'yerel market zinciri süpermarket',
@@ -93,6 +94,15 @@ async function runPipeline(jobId: number, city: string, keyword: string, segment
 // ─── POST /api/scrape ─────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request)
+  const limit = rateLimit(ip, 'scrape', { windowMs: 60_000, max: 5 })
+  if (!limit.success) {
+    return NextResponse.json(
+      { error: 'Çok fazla istek. Lütfen bir dakika bekleyin.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((limit.resetAt - Date.now()) / 1000)) } }
+    )
+  }
+
   const body = await request.json()
   const { city, segment, keyword: customKeyword } = body
 
