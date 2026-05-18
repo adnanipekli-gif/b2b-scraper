@@ -11,6 +11,10 @@ function fmt(n: number): string {
   return String(n)
 }
 
+function toTitleCase(str: string): string {
+  return str.replace(/\S+/g, word => word.charAt(0).toLocaleUpperCase('tr-TR') + word.slice(1))
+}
+
 function extractJson(text: string): string {
   const block = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/)
   if (block) return block[1]
@@ -67,7 +71,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { company_id, tone = 'profesyonel' } = body
+  const { company_id, manual } = body
 
   const { data: company, error: companyError } = await supabaseAdmin
     .from('companies')
@@ -79,52 +83,91 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Firma bulunamadı' }, { status: 404 })
   }
 
-  const segmentLabel =
-    company.segment === 'yerel_zincir'
-      ? 'Yerel zincir market'
-      : company.segment === 'soguk_depo'
-      ? 'Soğuk depo / soğuk hava deposu'
-      : company.segment ?? 'Bilinmiyor'
+  // ── Manuel mod: AI çağrısı olmadan boş taslak oluştur ────────────────────
+  if (manual) {
+    const { data: draft, error: draftError } = await supabaseAdmin
+      .from('email_drafts')
+      .insert({ company_id, subject: '', body_html: '<p></p>', body_plain: '', status: 'draft' })
+      .select()
+      .single()
+    if (draftError) return NextResponse.json({ error: draftError.message }, { status: 500 })
+    return NextResponse.json({ draft }, { status: 201 })
+  }
 
-  const toneLabel =
-    tone === 'teknik'
-      ? 'teknik ve profesyonel (B2B tedarik/lojistik odaklı)'
-      : 'profesyonel ama samimi (karar vericiyle direkt iletişim)'
+  // ── Segment'e göre hangi ND Group hizmetini öne çıkaracağımızı belirle ──
+  const segmentContext =
+    company.segment === 'soguk_depo'
+      ? {
+          label: 'Soğuk depo / soğuk hava deposu',
+          hizmet: `Ecocold Cooling Systems (ND Group bünyesi): monoblok, split ve merkezi soğutma sistemleri,
+soğuk oda panelleri ve nemlendirme teknolojileri. Kendi mühendislik ekibimizle hesaplama ve anahtar
+teslim kurulum yapıyoruz.`,
+          agriNokta:
+            company.growth_signal === 'expanding'
+              ? 'artan kapasite ihtiyacı ve yeni depo projelerinde doğru sistem seçimi'
+              : 'enerji maliyeti, sistem verimi ve bakım sürekliliği',
+        }
+      : {
+          label: 'Yerel zincir market',
+          hizmet: `ND Group olarak üç alanda hizmet veriyoruz:
+1. Pasifik Raf & Logoraf — gondol raflar, duvar üniteleri, manav stantları, ağır yük raf sistemleri
+2. Ecocold Cooling Systems — market soğutma grupları, soğuk oda çözümleri
+3. Nokta Dizayn — mağaza iç konsept tasarımı, 3D render ve anahtar teslim proje`,
+          agriNokta:
+            company.branches && company.branches > 5
+              ? 'çok şubeli operasyonda standart görünüm ve tedarik yönetimi'
+              : 'mağaza dizaynı ve donanımında maliyet/verimlilik dengesi',
+        }
 
-  const context = [
-    `Firma: ${company.name}`,
+  const companyContext = [
+    `Firma adı: ${company.name}`,
     `Şehir: ${company.city ?? 'Belirtilmemiş'}`,
-    `Segment: ${segmentLabel}`,
+    `Sektör: ${segmentContext.label}`,
     company.branches ? `Şube sayısı: ~${company.branches}` : null,
     company.instagram_followers
-      ? `Instagram: ${fmt(company.instagram_followers)} takipçi`
+      ? `Instagram takipçisi: ${fmt(company.instagram_followers)}`
       : null,
     company.google_maps_rating
       ? `Google puanı: ${company.google_maps_rating}/5 (${company.google_maps_reviews ?? 0} yorum)`
       : null,
-    company.growth_signal === 'expanding' ? 'Büyüme durumu: Genişleme sürecinde' : null,
-    company.notes ? `Not: ${company.notes}` : null,
+    company.growth_signal === 'expanding' ? 'Büyüme sinyali: genişleme sürecinde' : null,
+    company.notes ? `Ek not: ${company.notes}` : null,
   ]
     .filter(Boolean)
     .join('\n')
 
-  const prompt = `Sen deneyimli bir Türk B2B satış uzmanısın.
+  const prompt = `Sen ND Group adına yazan deneyimli bir Türk B2B satış temsilcisisin.
+
+ND GROUP HAKKINDA:
+ND Group; endüstriyel soğutma sistemleri (Ecocold, Ecocold Cooling Systems), mağaza raf & depolama ekipmanları (Pasifik Raf /
+Logoraf) ve mimari mağaza tasarımı (Nokta Dizayn) alanlarında faaliyet gösteren, mühendislik ve
+çözüm odaklı bir firmadır. Sadece ürün satmıyor; müşteriye vizyon çiziyor, anahtar teslim projeler
+sunuyor.
 
 HEDEF FİRMA:
-${context}
+${companyContext}
+
+BU FİRMAYA SUNACAĞIMIZ DEĞER:
+${segmentContext.hizmet}
+
+ÖNE ÇIKARILACAK AĞRI NOKTASI:
+${segmentContext.agriNokta}
 
 GÖREV:
-Bu firmaya gönderilecek ${toneLabel} tonunda kişiselleştirilmiş bir B2B soğuk email yaz.
+Yukarıdaki firmaya gönderilecek kısa, samimi ve insan eli değmiş gibi hissettiren Türkçe bir soğuk
+satış emaili yaz. Kurumsal şablona benzemesin; gerçekten o firmayla ilgileniyormuşsun gibi konuş.
 
 KURALLAR:
-- Tamamen Türkçe
-- Maksimum 160 kelime
-- Firmaya özel bir ağrı noktasına değin (çok şube → operasyon; büyüme → kapasite; vs.)
-- Biz kim olduğumuzu tek cümleyle açıkla; değer önerisini net yaz
-- Kısa bir CTA ekle: 15 dakikalık görüşme veya demo talebi
-- Spam gibi görünmesin
-
-HTML emailde basit yapı kullan (<p> etiketleri yeterli, karmaşık layout gerekmez).
+- Türkçe, sade, günlük iş dili — resmi ama robotik değil
+- Cümlelerde "—" veya "..." gibi yapay duraklamalar kullanma
+- En fazla 200 kelime (subject hariç)
+- Firmaya özel ağrı noktasından gir; hemen ürün saymaya başlama
+- ND Group'u en fazla iki-üç cümleyle tanıt, gerisini değer önerisine ayır
+- CTA: 15-20 dakikalık kısa bir görüşme veya yerinde keşif talebi
+- Konu satırı merak uyandırmalı ama clickbait olmamalı
+- Hiç emoji kullanma
+- HTML için sadece <p> etiketleri kullan, karmaşık yapıdan kaçın
+- Emailin sonuna imza, isim, telefon veya "Saygılarımla" gibi kapanış ifadesi EKLEME; imza şablona ayrıca ekleniyor
 
 Yanıtını YALNIZCA aşağıdaki JSON formatında ver, başka hiçbir şey ekleme:
 {"subject":"...","body_html":"<p>...</p>","body_plain":"..."}`
@@ -146,6 +189,8 @@ Yanıtını YALNIZCA aşağıdaki JSON formatında ver, başka hiçbir şey ekle
     if (!parsed.subject || !parsed.body_plain) {
       throw new Error('AI yanıtında subject veya body_plain eksik')
     }
+
+    parsed.subject = toTitleCase(parsed.subject)
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'AI hatası' },

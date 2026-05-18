@@ -10,6 +10,7 @@ interface Props {
   onReview: (entry: DraftEntry, index: number) => void
   onEdit: (entry: DraftEntry) => void
   onDelete: (draftId: number) => void
+  onSend?: (entry: DraftEntry) => void
 }
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -19,7 +20,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   sent:     { label: 'Gönderildi', cls: 'bg-blue-900/50 text-blue-400' },
 }
 
-export default function EmailDraftsList({ entries, errors, onReview, onEdit, onDelete }: Props) {
+export default function EmailDraftsList({ entries, errors, onReview, onEdit, onDelete, onSend }: Props) {
   return (
     <div>
       {/* Table header */}
@@ -41,7 +42,12 @@ export default function EmailDraftsList({ entries, errors, onReview, onEdit, onD
             className="grid grid-cols-[1fr_2fr_auto_auto] gap-4 items-center px-5 py-3.5 hover:bg-[#0f0f16] transition-colors border-b border-[#1a1a28] last:border-b-0"
           >
             {/* Company */}
-            <span className="text-sm font-medium text-white truncate">{company.name}</span>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white truncate">{company.name}</p>
+              {company.email && (
+                <p className="text-xs text-accent/70 truncate mt-0.5">{company.email}</p>
+              )}
+            </div>
 
             {/* Subject */}
             <span className="text-sm text-accent truncate">{draft.subject}</span>
@@ -54,17 +60,30 @@ export default function EmailDraftsList({ entries, errors, onReview, onEdit, onD
             {/* Actions */}
             <div className="flex items-center gap-1.5">
               <button
-                onClick={() => onReview(entry, idx)}
-                className="text-xs text-gray-400 hover:text-white border border-[#2a2a3e] hover:border-[#3a3a5e] px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
-              >
-                İncele
-              </button>
-              <button
                 onClick={() => onEdit(entry)}
                 className="text-xs text-gray-400 hover:text-white border border-[#2a2a3e] hover:border-[#3a3a5e] px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
               >
                 Düzenle
               </button>
+              <button
+                onClick={() => onReview(entry, idx)}
+                className="text-xs text-gray-400 hover:text-white border border-[#2a2a3e] hover:border-[#3a3a5e] px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Önizle
+              </button>
+              {draft.status !== 'sent' && onSend && (
+                <button
+                  onClick={() => onSend(entry)}
+                  className="text-xs text-[#0f0f13] font-semibold bg-accent hover:bg-[#00a8ae] px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  Gönder
+                </button>
+              )}
+              {draft.status === 'sent' && (
+                <span className="text-xs text-blue-400 border border-blue-900/30 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                  ✓ Gönderildi
+                </span>
+              )}
               <button
                 onClick={() => onDelete(draft.id)}
                 className="text-xs text-red-500 hover:text-red-400 border border-red-900/30 hover:border-red-800/50 px-2.5 py-1 rounded-lg transition-colors"

@@ -41,10 +41,6 @@ export default function AppNav() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <span className="hidden sm:inline text-[11px] text-gray-600 bg-[#1a1a28] border border-[#2a2a3e] px-3 py-1 rounded-full">
-            Sprint 7
-          </span>
-
           {/* Mobile hamburger */}
           <button
             className="sm:hidden p-2 text-gray-400 hover:text-white transition-colors rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
@@ -83,9 +79,6 @@ export default function AppNav() {
               {link.label}
             </Link>
           ))}
-          <div className="pt-2 pb-1">
-            <span className="text-[11px] text-gray-600">Sprint 7</span>
-          </div>
         </nav>
       )}
     </header>

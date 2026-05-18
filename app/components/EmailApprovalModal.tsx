@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { DraftEntry } from '@/lib/types'
 import { SendResult } from '@/app/hooks/useEmailDraft'
+import { wrapEmailWithBranding } from '@/lib/email-template'
 import SendEmailConfirm from './SendEmailConfirm'
 import SendingStatus from './SendingStatus'
 
@@ -14,7 +15,7 @@ interface Props {
   onEdit: (entry: DraftEntry) => void
   onApprove: (draftId: number) => Promise<void>
   onReject: (draftId: number) => Promise<void>
-  onSend: (draftId: number) => Promise<SendResult>
+  onSend: (draftId: number, toEmail?: string) => Promise<SendResult>
   onNext: () => void
   onPrevious: () => void
 }
@@ -101,11 +102,11 @@ export default function EmailApprovalModal({
     setSendStage('confirm')
   }
 
-  const handleSendConfirmed = async () => {
+  const handleSendConfirmed = async (toEmail: string) => {
     setSendStage('sending')
     setSendError('')
     try {
-      const result = await onSend(draft.id)
+      const result = await onSend(draft.id, toEmail)
       setSendResult(result)
       setSendStage('success')
     } catch (err) {
@@ -299,10 +300,10 @@ export default function EmailApprovalModal({
               <div className="flex-1 overflow-auto p-5">
                 {tab === 'html' ? (
                   <iframe
-                    srcDoc={draft.body_html ?? '<p>İçerik yok</p>'}
+                    srcDoc={wrapEmailWithBranding(draft.body_html ?? '')}
                     title="Email önizleme"
-                    className="w-full rounded-xl border border-[#1e1e2e] bg-white"
-                    style={{ minHeight: 260 }}
+                    className="w-full rounded-xl border border-[#1e1e2e]"
+                    style={{ minHeight: 320 }}
                     sandbox="allow-same-origin"
                   />
                 ) : (
@@ -377,7 +378,7 @@ export default function EmailApprovalModal({
       {sendStage === 'confirm' && (
         <SendEmailConfirm
           entry={entry}
-          onConfirm={handleSendConfirmed}
+          onConfirm={(email) => handleSendConfirmed(email)}
           onCancel={() => setSendStage('none')}
         />
       )}

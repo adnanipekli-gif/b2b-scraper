@@ -85,13 +85,13 @@ export function useEmailDraft() {
     setCurrentIndex(prev => Math.max(0, prev - 1))
   }, [])
 
-  const sendDraft = useCallback(async (draft_id: number): Promise<SendResult> => {
+  const sendDraft = useCallback(async (draft_id: number, toEmail?: string): Promise<SendResult> => {
     setSendingStatus('sending')
     try {
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft_id }),
+        body: JSON.stringify({ draft_id, to_email: toEmail }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Gönderme hatası')
@@ -125,6 +125,8 @@ export function useEmailDraft() {
     setDrafts(prev => [...prev, entry])
   }, [])
 
+  const clearDrafts = useCallback(() => setDrafts([]), [])
+
   const goToNext = useCallback(() => {
     setCurrentIndex(prev => Math.min(prev + 1, drafts.length - 1))
   }, [drafts.length])
@@ -155,6 +157,7 @@ export function useEmailDraft() {
     sendDraft,
     resetSendingStatus,
     addDraft,
+    clearDrafts,
     goToNext,
     goPrevious,
     goTo,

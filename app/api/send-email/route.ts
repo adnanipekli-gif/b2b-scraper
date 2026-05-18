@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { wrapEmailWithBranding } from '@/lib/email-template'
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -135,7 +136,7 @@ async function sendGmailWithRetry(
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { draft_id } = body
+  const { draft_id, to_email } = body
 
   if (!draft_id) {
     return NextResponse.json({ error: 'draft_id gerekli' }, { status: 400 })
@@ -159,10 +160,10 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const toEmail = draft.companies?.email
+  const toEmail = (to_email as string | undefined)?.trim() || draft.companies?.email
   if (!toEmail) {
     return NextResponse.json(
-      { error: 'Bu firma için email adresi yok' },
+      { error: 'Alıcı email adresi girilmedi' },
       { status: 400 },
     )
   }
@@ -205,9 +206,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: pendingError?.message ?? 'DB hatası' }, { status: 500 })
   }
 
-  // Inject tracking pixel + link wrapping into HTML
-  const rawHtml = draft.body_html ?? draft.body_plain ?? ''
-  const trackedHtml = injectTracking(rawHtml, pendingSent.id, appUrl)
+  // Wrap raw body with ND Group branding, then inject tracking
+  const rawHtml = draft.body_html ?? ''
+  const brandedHtml = wrapEmailWithBranding(rawHtml)
+  const trackedHtml = injectTracking(brandedHtml, pendingSent.id, appUrl)
 
   const mimeMessage = buildMimeMessage({
     from: fromAddress,
